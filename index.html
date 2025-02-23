@@ -200,7 +200,7 @@
 </head>
 <body>
     <div class="container">
-        <div id="dashboard">Loading...</div>
+        <div id="dashboard" class="loading">Loading journey data...</div>
     </div>
 
     <!-- Photo Modal -->
@@ -227,6 +227,8 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         let currentMap = null;
+        let currentMarkers = [];
+        let currentPath = null;
 
         // Get stone ID from URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -261,6 +263,141 @@
             }
         }
 
+        function initializeMap(coordinates, journeys) {
+            if (!currentMap) {
+                currentMap = L.map('journeyMap').setView([0, 0], 2);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap'
+                }).addTo(currentMap);
+            }
+
+            // Clear existing markers and paths
+            currentMarkers.forEach(marker => marker.remove());
+            currentMarkers = [];
+            if (currentPath) {
+                currentPath.remove();
+            }
+
+            if (coordinates.length > 0) {
+                const featureGroup = L.featureGroup();
+
+                // Add path line
+                currentPath = L.polyline(coordinates, {
+                    color: '#3498db',
+                    weight: 3,
+                    opacity: 0.8
+                }).addTo(currentMap);
+                featureGroup.addLayer(currentPath);
+
+                // Add markers
+                journeys.forEach((journey) => {
+                    if (journey.coordinates) {
+                        let popupContent = `
+                            <div style="max-width: 200px;">
+                                <b>${journey.location}</b>
+                                <p style="margin: 5px 0;">${journey.message}</p>
+                        `;
+                        
+                        if (journey.photoData && journey.photoData.url) {
+                            popupContent += `
+                                <img src="${journey.photoData.url}" 
+                                    style="width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer;"
+                                    onclick="openPhotoModal('${journey.photoData.url}')"
+                                >
+                            `;
+                        }
+                        
+                        popupContent += '</div>';
+
+                        const marker = L.marker([journey.coordinates.lat, journey.coordinates.lon])
+                            .bindPopup(popupContent)
+                            .addTo(currentMap);
+                        currentMarkers.push(marker);
+                        featureGroup.addLayer(marker);
+                    }
+                });
+
+                // Fit map to show all markers
+                const bounds = featureGroup.getBounds();
+                if (bounds.isValid()) {
+                    currentMap.fitBounds(bounds, {
+                        padding: [50, 50]
+                    });
+                }
+            }
+
+            currentMap.invalidateSize();
+        }
+
+        function updateDashboardUI(journeys, coordinates) {
+            const dashboard = document.getElementById('dashboard');
+            
+            // Create dashboard HTML
+            let dashboardHtml = `
+                <h1>🪨 Stone #${stoneId} Journey</h1>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Journeys</h3>
+                        <p>${journeys.length}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Last Active</h3>
+                        <p>${journeys[0]?.timestamp?.toLocaleDateString() || 'Never'}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Current Location</h3>
+                        <p>${journeys[0]?.location || 'Unknown'}</p>
+                    </div>
+                </div>
+
+                <div id="journeyMap"></div>
+
+                <div class="journey-timeline">
+                    <h2>Journey Timeline</h2>
+            `;
+
+            // Add journey entries
+            journeys.forEach(journey => {
+                const date = journey.timestamp ? journey.timestamp.toLocaleDateString() : 'Recent';
+                const time = journey.timestamp ? journey.timestamp.toLocaleTimeString() : '';
+                
+                let photoHtml = '';
+                if (journey.photoData && journey.photoData.url) {
+                    photoHtml = `
+                        <img src="${journey.photoData.url}" 
+                            alt="Journey photo" 
+                            class="journey-photo"
+                            onclick="openPhotoModal('${journey.photoData.url}')"
+                            loading="lazy"
+                        >
+                    `;
+                }
+
+                dashboardHtml += `
+                    <div class="journey-entry">
+                        <h3>📍 ${journey.location}</h3>
+                        <div class="journey-content">
+                            <div class="journey-text">
+                                <p>${journey.message}</p>
+                                <p class="timestamp">${date} ${time}</p>
+                            </div>
+                            ${photoHtml}
+                        </div>
+                    </div>
+                `;
+            });
+
+            dashboardHtml += '</div>';
+            dashboard.innerHTML = dashboardHtml;
+
+            // Initialize/update map
+            setTimeout(() => {
+                initializeMap(coordinates, journeys);
+            }, 100);
+        }
+
         async function loadDashboard() {
             const dashboard = document.getElementById('dashboard');
 
@@ -270,150 +407,50 @@
             }
 
             try {
-                // Get stone journeys
-                const journeysSnapshot = await db.collection('stones')
+                // Get stone journeys with real-time listener
+                const unsubscribe = db.collection('stones')
                     .doc(stoneId)
                     .collection('journeys')
                     .orderBy('timestamp', 'desc')
-                    .get();
+                    .onSnapshot(async (snapshot) => {
+                        const journeys = [];
+                        const coordinates = [];
 
-                const journeys = [];
-                const coordinates = [];
+                        // Process journey data
+                        for (const doc of snapshot.docs) {
+                            const data = doc.data();
+                            let coords = data.coordinates;
 
-                // Process journey data
-                for (const doc of journeysSnapshot.docs) {
-                    const data = doc.data();
-                    let coords = data.coordinates;
-
-                    if (!coords && data.location) {
-                        coords = await getCoordinates(data.location);
-                        if (coords) {
-                            coordinates.push([coords.lat, coords.lon]);
-                        }
-                    } else if (coords) {
-                        coordinates.push([coords.lat, coords.lon]);
-                    }
-
-                    journeys.push({
-                        id: doc.id,
-                        ...data,
-                        coordinates: coords,
-                        timestamp: data.timestamp?.toDate()
-                    });
-                }
-
-                // Create dashboard HTML
-                let dashboardHtml = `
-                    <h1>🪨 Stone #${stoneId} Journey</h1>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h3>Total Journeys</h3>
-                            <p>${journeys.length}</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Last Active</h3>
-                            <p>${journeys[0]?.timestamp?.toLocaleDateString() || 'Never'}</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Current Location</h3>
-                            <p>${journeys[0]?.location || 'Unknown'}</p>
-                        </div>
-                    </div>
-
-                    <div id="journeyMap"></div>
-
-                    <div class="journey-timeline">
-                        <h2>Journey Timeline</h2>
-                `;
-
-                // Add journey entries
-                journeys.forEach(journey => {
-                    const date = journey.timestamp ? journey.timestamp.toLocaleDateString() : 'Recent';
-                    const time = journey.timestamp ? journey.timestamp.toLocaleTimeString() : '';
-                    
-                    let photoHtml = '';
-                    if (journey.photoData && journey.photoData.url) {
-                        photoHtml = `
-                            <img src="${journey.photoData.url}" 
-                                alt="Journey photo" 
-                                class="journey-photo"
-                                onclick="openPhotoModal('${journey.photoData.url}')"
-                            >
-                        `;
-                    }
-
-                    dashboardHtml += `
-                        <div class="journey-entry">
-                            <h3>📍 ${journey.location}</h3>
-                            <div class="journey-content">
-                                <div class="journey-text">
-                                    <p>${journey.message}</p>
-                                    <p class="timestamp">${date} ${time}</p>
-                                </div>
-                                ${photoHtml}
-                            </div>
-                        </div>
-                    `;
-                });
-
-                dashboardHtml += '</div>';
-                dashboard.innerHTML = dashboardHtml;
-
-                // Initialize map
-                currentMap = L.map('journeyMap').setView([0, 0], 2);
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '© OpenStreetMap'
-                }).addTo(currentMap);
-
-                if (coordinates.length > 0) {
-                    // Create a feature group for all map elements
-                    const featureGroup = L.featureGroup().addTo(currentMap);
-                    
-                    // Add path line
-                    const path = L.polyline(coordinates, {
-                        color: '#3498db',
-                        weight: 3,
-                        opacity: 0.8
-                    });
-                    featureGroup.addLayer(path);
-
-                    // Add markers
-                    journeys.forEach((journey) => {
-                        if (journey.coordinates) {
-                            let popupContent = `
-                                <div style="max-width: 200px;">
-                                    <b>${journey.location}</b>
-                                    <p style="margin: 5px 0;">${journey.message}</p>
-                            `;
-                            
-                            if (journey.photoData && journey.photoData.url) {
-                                popupContent += `
-                                    <img src="${journey.photoData.url}" 
-                                        style="width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer;"
-                                        onclick="openPhotoModal('${journey.photoData.url}')"
-                                    >
-                                `;
+                            if (!coords && data.location) {
+                                coords = await getCoordinates(data.location);
+                                if (coords) {
+                                    coordinates.push([coords.lat, coords.lon]);
+                                }
+                            } else if (coords) {
+                                coordinates.push([coords.lat, coords.lon]);
                             }
-                            
-                            popupContent += '</div>';
 
-                            const marker = L.marker([journey.coordinates.lat, journey.coordinates.lon])
-                                .bindPopup(popupContent);
-                            featureGroup.addLayer(marker);
+                            journeys.push({
+                                id: doc.id,
+                                ...data,
+                                coordinates: coords,
+                                timestamp: data.timestamp?.toDate()
+                            });
                         }
+
+                        updateDashboardUI(journeys, coordinates);
+                    }, (error) => {
+                        console.error("Error loading journeys:", error);
+                        dashboard.innerHTML = '<div class="error">Error loading stone journey data.</div>';
                     });
 
-                    // Fit map to show all markers
-                    currentMap.fitBounds(featureGroup.getBounds(), {
-                        padding: [50, 50]
-                    });
-                }
+                // Clean up listener on page unload
+                window.addEventListener('unload', () => unsubscribe());
 
             } catch (error) {
                 console.error("Error loading dashboard:", error);
-                dashboard.innerHTML = '<div class="error">Error loading stone journey data.</div>';
+                dashboard.innerHTML = '<div class="error">Error loading stone journey
+                    data.</div>';
             }
         }
 
