@@ -7,6 +7,7 @@
     <!-- Firebase -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-storage-compat.min.js"></script>
     <!-- Leaflet for maps -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -66,6 +67,7 @@
             max-width: 100%;
             border-radius: 8px;
             margin: 10px 0;
+            cursor: pointer;
         }
 
         .location-info {
@@ -121,10 +123,126 @@
             font-size: 1.2em;
             margin-right: 4px;
         }
+
+        /* Added styles for numbered markers */
+        .journey-marker-container {
+            background: none;
+            border: none;
+        }
+        
+        .journey-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background-color: #0ead69;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .journey-marker-final {
+            background-color: #e74c3c;
+        }
+
+        /* Stone photo container */
+        .stone-photo-container {
+            margin: 30px auto 0;
+            text-align: center;
+            max-width: 300px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stone-photo {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        
+        .stone-photo:hover {
+            transform: scale(1.05);
+        }
+
+        /* Journey stats */
+        #journey-stats {
+            text-align: center;
+            font-weight: 600;
+            color: #34495e;
+            margin: 20px auto 40px;
+            padding: 15px;
+            background: #f1f8ff;
+            border-radius: 10px;
+            max-width: 90%;
+            border-left: 5px solid #8fd3f4;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* Photo modal */
+        .photo-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+        
+        .modal-content img {
+            max-width: 100%;
+            max-height: 90vh;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            color: white;
+            font-size: 30px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .close-modal:hover {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Photo Modal -->
+        <div id="photoModal" class="photo-modal">
+            <div class="modal-content">
+                <button class="close-modal" onclick="closePhotoModal()">×</button>
+                <img id="modalImage" src="" alt="Stone photo">
+            </div>
+        </div>
+
         <div id="app">
             <!-- Content will be loaded here -->
         </div>
@@ -144,7 +262,22 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        const storage = firebase.storage();
         let currentMap = null;
+
+        // Function to open photo modal
+        function openPhotoModal(url) {
+            const modal = document.getElementById('photoModal');
+            const modalImg = document.getElementById('modalImage');
+            modal.style.display = 'flex';
+            modalImg.src = url;
+        }
+
+        // Function to close photo modal
+        function closePhotoModal() {
+            const modal = document.getElementById('photoModal');
+            modal.style.display = 'none';
+        }
 
         async function getCoordinates(locationString) {
             try {
@@ -165,6 +298,68 @@
             }
         }
 
+        async function loadStonePhoto(stoneId) {
+            try {
+                // First check if the stone has a feature photo in Firestore
+                const stoneDoc = await db.collection('stones').doc(stoneId).get();
+                const stoneData = stoneDoc.data() || {};
+                
+                let photoUrl = null;
+                
+                // Check if there's a feature photo URL in Firestore
+                if (stoneData.featurePhoto && stoneData.featurePhoto.url) {
+                    photoUrl = stoneData.featurePhoto.url;
+                    console.log("Found photo in Firestore:", photoUrl);
+                } else {
+                    // If not in Firestore, try to get it directly from Storage
+                    try {
+                        console.log("Checking Storage for photo: ", `stones/${stoneId}/${stoneId}`);
+                        const storageRef = storage.ref(`stones/${stoneId}/${stoneId}`);
+                        photoUrl = await storageRef.getDownloadURL();
+                        console.log("Found photo in Storage:", photoUrl);
+                        
+                        // Update Firestore with the photo URL for future reference
+                        try {
+                            await db.collection('stones').doc(stoneId).update({
+                                featurePhoto: {
+                                    url: photoUrl,
+                                    uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                }
+                            });
+                            console.log("Updated Firestore with Storage photo URL");
+                        } catch (updateError) {
+                            console.error("Error updating Firestore with photo URL:", updateError);
+                        }
+                    } catch (storageError) {
+                        console.log("No feature photo found in Storage:", storageError);
+                    }
+                }
+                
+                const stonePhotoContainer = document.getElementById('stone-photo-container');
+                
+                if (photoUrl) {
+                    stonePhotoContainer.innerHTML = `
+                        <h3>Your Stone</h3>
+                        <img src="${photoUrl}" alt="Stone #${stoneId}" class="stone-photo" 
+                             onclick="openPhotoModal('${photoUrl}')">
+                    `;
+                } else {
+                    stonePhotoContainer.innerHTML = `
+                        <h3>Your Stone</h3>
+                        <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; 
+                                    justify-content: center; background: #f5f5f5; border-radius: 10px; border: 1px dashed #ccc;">
+                            <p style="color: #666; margin: 0; font-size: 0.9em;">No photo available yet</p>
+                        </div>
+                    `;
+                }
+
+                return true;
+            } catch (error) {
+                console.error("Error loading stone photo:", error);
+                return false;
+            }
+        }
+
         function updateMap(journeys) {
             if (currentMap) {
                 currentMap.remove();
@@ -182,32 +377,81 @@
                 attribution: '© OpenStreetMap'
             }).addTo(currentMap);
 
-            const coordinates = journeys
-                .filter(journey => journey.coordinates)
-                .map(journey => [journey.coordinates.lat, journey.coordinates.lon]);
+            const journeyPoints = [];
+            const coordinates = [];
+            const bounds = L.latLngBounds();
+
+            // Sort journeys chronologically (oldest first)
+            const sortedJourneys = [...journeys].sort((a, b) => {
+                const dateA = a.timestamp ? a.timestamp.seconds : 0;
+                const dateB = b.timestamp ? b.timestamp.seconds : 0;
+                return dateA - dateB;
+            });
+
+            // Process journeys for coordinates
+            sortedJourneys.forEach(journey => {
+                if (journey.coordinates) {
+                    coordinates.push([journey.coordinates.lat, journey.coordinates.lon]);
+                    bounds.extend([journey.coordinates.lat, journey.coordinates.lon]);
+                    
+                    // Store journey point data for creating markers
+                    journeyPoints.push({
+                        coordinates: [journey.coordinates.lat, journey.coordinates.lon],
+                        data: journey
+                    });
+                }
+            });
 
             if (coordinates.length > 0) {
-                const featureGroup = L.featureGroup().addTo(currentMap);
-                
+                // Create the journey polyline with dashed styling
                 const path = L.polyline(coordinates, {
                     color: '#3498db',
                     weight: 3,
-                    opacity: 0.8
-                });
-                featureGroup.addLayer(path);
+                    opacity: 0.8,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    dashArray: '5, 10'
+                }).addTo(currentMap);
 
-                journeys.forEach((journey) => {
-                    if (journey.coordinates) {
-                        const marker = L.marker([journey.coordinates.lat, journey.coordinates.lon])
-                            .bindPopup(`
-                                <b>Found in ${journey.location}</b><br>
-                                ${journey.message}
-                            `);
-                        featureGroup.addLayer(marker);
+                // Add numbered markers for each location
+                journeyPoints.forEach((point, index) => {
+                    const isFinalPoint = index === journeyPoints.length - 1;
+                    const data = point.data;
+                    
+                    // Create popup content
+                    let popupContent = `
+                        <div style="max-width: 200px;">
+                            <b>Found in ${data.location}</b>
+                            <p style="margin: 5px 0;">${data.message}</p>
+                    `;
+                    
+                    if (data.photoData && data.photoData.url) {
+                        popupContent += `
+                            <img src="${data.photoData.url}" 
+                                style="width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer;"
+                                onclick="openPhotoModal('${data.photoData.url}')"
+                            >
+                        `;
                     }
+                    
+                    popupContent += '</div>';
+                    
+                    // Create a numbered marker
+                    const markerIcon = L.divIcon({
+                        html: `<div class="journey-marker${isFinalPoint ? ' journey-marker-final' : ''}">${index + 1}</div>`,
+                        className: 'journey-marker-container',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+                    
+                    // Add the marker with popup
+                    L.marker(point.coordinates, {
+                        icon: markerIcon
+                    }).bindPopup(popupContent).addTo(currentMap);
                 });
 
-                currentMap.fitBounds(featureGroup.getBounds(), {
+                // Fit map to show all markers
+                currentMap.fitBounds(bounds, {
                     padding: [50, 50],
                     animate: true
                 });
@@ -237,9 +481,15 @@
                     <div class="card-header text-center">
                         <h1 class="card-title">🪨 Happy Stone Journey Tracker</h1>
                     </div>
-                    <div class="text-center">
-                        <p>This stone has spread joy ${journeys.length} times on its journey! ✨</p>
-                    </div>
+                </div>
+
+                <div id="stone-photo-container" class="stone-photo-container">
+                    <div class="loading-spinner"></div>
+                    <h3>Loading Stone Photo...</h3>
+                </div>
+
+                <div id="journey-stats">
+                    This stone has spread joy ${journeys.length} times on its journey! ✨
                 </div>
 
                 <div class="card">
@@ -257,7 +507,7 @@
                                 <strong>Found in ${journey.location}</strong>
                             </div>
                             ${journey.photoData && journey.photoData.url 
-                                ? `<img src="${journey.photoData.url}" alt="Stone location" class="journey-photo">` 
+                                ? `<img src="${journey.photoData.url}" alt="Stone location" class="journey-photo" onclick="openPhotoModal('${journey.photoData.url}')">` 
                                 : ''}
                             <p class="message-text">${journey.message}</p>
                             <div class="date-info">
@@ -270,6 +520,11 @@
             `;
 
             document.getElementById('app').innerHTML = content;
+            
+            // Load the stone photo
+            loadStonePhoto(stoneId);
+            
+            // Update the map
             updateMap(journeys);
         }
 
@@ -326,6 +581,20 @@
 
             showLoading();
             loadStoneData(stoneId);
+            
+            // Handle modal events
+            document.getElementById('photoModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closePhotoModal();
+                }
+            });
+
+            // Handle escape key for modal
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closePhotoModal();
+                }
+            });
         });
     </script>
 </body>
