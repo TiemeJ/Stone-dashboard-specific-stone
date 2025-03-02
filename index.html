@@ -16,7 +16,8 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background: #f5f5f5;
+            background: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+            min-height: 100vh;
             line-height: 1.6;
         }
 
@@ -26,9 +27,9 @@
         }
 
         .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
             padding: 20px;
         }
@@ -41,7 +42,7 @@
             font-size: 1.5rem;
             font-weight: bold;
             margin: 0;
-            color: #333;
+            color: #2c3e50;
         }
 
         .text-center {
@@ -53,20 +54,22 @@
             width: 100%;
             border-radius: 8px;
             margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         .journey-card {
-            background: white;
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
         .journey-photo {
             max-width: 100%;
             border-radius: 8px;
             margin: 10px 0;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
             cursor: pointer;
         }
 
@@ -75,17 +78,17 @@
             align-items: center;
             gap: 8px;
             margin-bottom: 10px;
-            color: #555;
+            color: #34495e;
         }
 
         .date-info {
             font-size: 0.9rem;
-            color: #666;
+            color: #34495e;
             margin-top: 10px;
         }
 
         .message-text {
-            color: #333;
+            color: #34495e;
             margin: 10px 0;
         }
 
@@ -98,7 +101,7 @@
 
         .loading-spinner {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
+            border-top: 4px solid #84fab0;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -112,6 +115,23 @@
             padding: 16px;
             border-radius: 8px;
             margin: 20px 0;
+        }
+
+        button {
+            background: linear-gradient(to right, #84fab0, #8fd3f4);
+            color: #2c3e50;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         @keyframes spin {
@@ -149,29 +169,42 @@
             background-color: #e74c3c;
         }
 
-        /* Stone photo container */
+        /* Updated Stone photo container for transparency */
         .stone-photo-container {
             margin: 30px auto 0;
             text-align: center;
             max-width: 300px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
         }
         
+        /* Updated stone photo - drop-shadow instead of box-shadow */
         .stone-photo {
             max-width: 100%;
             max-height: 250px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
             transition: transform 0.2s;
+            background: transparent;
             cursor: pointer;
         }
         
         .stone-photo:hover {
             transform: scale(1.05);
+        }
+
+        /* Updated placeholder for transparency */
+        .stone-placeholder {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px dashed rgba(132, 250, 176, 0.5);
         }
 
         /* Journey stats */
@@ -188,7 +221,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        /* Photo modal */
+        /* Updated Photo modal for transparency */
         .photo-modal {
             display: none;
             position: fixed;
@@ -206,13 +239,14 @@
             max-width: 90%;
             max-height: 90%;
             position: relative;
+            background: transparent;
         }
         
         .modal-content img {
             max-width: 100%;
             max-height: 90vh;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.25));
+            background: transparent;
         }
         
         .close-modal {
@@ -230,6 +264,18 @@
         
         .close-modal:hover {
             transform: scale(1.1);
+        }
+
+        h1.main-title {
+            font-size: 2em;
+            text-align: center;
+            margin-bottom: 15px;
+            margin-top: 15px;
+            color: #2c3e50;
+        }
+
+        h3 {
+            color: #2c3e50;
         }
     </style>
 </head>
@@ -346,8 +392,7 @@
                 } else {
                     stonePhotoContainer.innerHTML = `
                         <h3>Your Stone</h3>
-                        <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; 
-                                    justify-content: center; background: #f5f5f5; border-radius: 10px; border: 1px dashed #ccc;">
+                        <div class="stone-placeholder">
                             <p style="color: #666; margin: 0; font-size: 0.9em;">No photo available yet</p>
                         </div>
                     `;
@@ -479,7 +524,7 @@
             const content = `
                 <div class="card">
                     <div class="card-header text-center">
-                        <h1 class="card-title">🪨 Happy Stone Journey Tracker</h1>
+                        <h1 class="main-title">🪨 Happy Stone Journey Tracker</h1>
                     </div>
                 </div>
 
