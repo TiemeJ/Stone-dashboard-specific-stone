@@ -4,6 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stone Journey Tracker</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Stone Tracker">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3310/3310788.png">
+    <meta name="theme-color" content="#84fab0">
+    <link rel="manifest" href="#manifest">
+    <script type="application/json" id="manifest">
+        {
+          "name": "Stone Journey Tracker",
+          "short_name": "Stone Tracker",
+          "icons": [
+            {
+              "src": "https://cdn-icons-png.flaticon.com/512/3310/3310788.png",
+              "sizes": "192x192",
+              "type": "image/png"
+            }
+          ],
+          "start_url": "./",
+          "display": "standalone",
+          "background_color": "#84fab0",
+          "theme_color": "#84fab0"
+        }
+    </script>
     <!-- Firebase -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
@@ -13,36 +36,40 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             margin: 0;
-            padding: 20px;
-            background: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+            padding: 0;
+            background: linear-gradient(135deg, #a6f7c8 0%, #b0e0f7 100%);
             min-height: 100vh;
-            line-height: 1.6;
+            line-height: 1.4;
+            color: #34495e;
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 900px;
             margin: 0 auto;
+            padding: 10px;
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 15px;
             padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
         }
 
         .card-header {
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .card-title {
-            font-size: 1.5rem;
-            font-weight: bold;
+            font-size: 1.25rem;
+            font-weight: 700;
             margin: 0;
-            color: #2c3e50;
+            color: #1e293b;
         }
 
         .text-center {
@@ -50,27 +77,42 @@
         }
 
         #journey-map {
-            height: 400px;
+            height: 300px;
             width: 100%;
             border-radius: 8px;
-            margin: 20px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .journey-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #ffffff;
             border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            border-left: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .journey-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
         }
 
         .journey-photo {
-            max-width: 100%;
-            border-radius: 8px;
+            width: 100%;
+            border-radius: 12px;
             margin: 10px 0;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
             cursor: pointer;
+            max-height: 220px;
+            object-fit: cover;
+            transition: all 0.2s ease;
+        }
+        
+        .journey-photo:hover {
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+            transform: scale(1.01);
         }
 
         .location-info {
@@ -79,32 +121,42 @@
             gap: 8px;
             margin-bottom: 10px;
             color: #34495e;
+            font-size: 0.95rem;
+            font-weight: 600;
         }
 
         .date-info {
-            font-size: 0.9rem;
-            color: #34495e;
+            font-size: 0.85rem;
+            color: #7f8c8d;
             margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
         .message-text {
             color: #34495e;
-            margin: 10px 0;
+            margin: 12px 0;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 12px;
         }
 
         .loading {
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 200px;
+            min-height: 150px;
         }
 
         .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #84fab0;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #84fab0;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             animation: spin 1s linear infinite;
         }
 
@@ -112,26 +164,27 @@
             background-color: #fee2e2;
             border: 1px solid #ef4444;
             color: #dc2626;
-            padding: 16px;
+            padding: 12px;
             border-radius: 8px;
-            margin: 20px 0;
+            margin: 15px 0;
+            font-size: 0.9rem;
         }
 
         button {
             background: linear-gradient(to right, #84fab0, #8fd3f4);
             color: #2c3e50;
-            padding: 14px 28px;
+            padding: 10px 20px;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
         }
 
         @keyframes spin {
@@ -140,11 +193,10 @@
         }
 
         .emoji-icon {
-            font-size: 1.2em;
-            margin-right: 4px;
+            font-size: 1.1em;
+            margin-right: 2px;
         }
 
-        /* Added styles for numbered markers */
         .journey-marker-container {
             background: none;
             border: none;
@@ -154,50 +206,68 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             background-color: #0ead69;
             color: white;
             border-radius: 50%;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 12px;
             border: 2px solid white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
         .journey-marker-final {
             background-color: #e74c3c;
         }
 
-        /* Updated Stone photo container for transparency */
+        /* Top section layout with flexbox */
+        .top-section {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 15px;
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        
         .stone-photo-container {
-            margin: 30px auto 0;
+            flex: 0 0 auto;
             text-align: center;
-            max-width: 300px;
-            padding: 0;
+            width: 140px;
             background: transparent;
             border: none;
             box-shadow: none;
+            margin: 0;
         }
         
-        /* Updated stone photo - drop-shadow instead of box-shadow */
+        .stone-info-section {
+            flex: 1;
+            min-width: 200px;
+        }
+        
         .stone-photo {
             max-width: 100%;
-            max-height: 250px;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
-            transition: transform 0.2s;
+            max-height: 140px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+            transition: transform 0.2s, filter 0.2s;
             background: transparent;
             cursor: pointer;
+            border-radius: 12px;
         }
         
         .stone-photo:hover {
             transform: scale(1.05);
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.2));
         }
 
-        /* Updated placeholder for transparency */
         .stone-placeholder {
-            width: 200px;
-            height: 200px;
+            width: 120px;
+            height: 120px;
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -207,21 +277,52 @@
             border: 2px dashed rgba(132, 250, 176, 0.5);
         }
 
-        /* Journey stats */
         #journey-stats {
-            text-align: center;
             font-weight: 600;
             color: #34495e;
-            margin: 20px auto 40px;
-            padding: 15px;
-            background: #f1f8ff;
-            border-radius: 10px;
-            max-width: 90%;
-            border-left: 5px solid #8fd3f4;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin: 0 0 18px 0;
+            padding: 0;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+        
+        .journey-counter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        }
+        
+        .counter-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            margin: 5px 0;
+            color: #34495e;
+        }
+        
+        .counter-text {
+            text-align: center;
+            font-weight: 500;
+            line-height: 1.4;
+            margin: 0;
+            font-size: 1rem;
+            color: #34495e;
+        }
+        
+        .joy-word {
+            color: #34495e;
+            font-weight: 600;
+        }
+        
+        .journey-word {
+            font-style: italic;
         }
 
-        /* Updated Photo modal for transparency */
         .photo-modal {
             display: none;
             position: fixed;
@@ -230,9 +331,10 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.8);
-            z-index: 1000;
+            z-index: 9999;
             justify-content: center;
             align-items: center;
+            backdrop-filter: blur(4px);
         }
         
         .modal-content {
@@ -240,6 +342,7 @@
             max-height: 90%;
             position: relative;
             background: transparent;
+            z-index: 10000;
         }
         
         .modal-content img {
@@ -247,18 +350,19 @@
             max-height: 90vh;
             filter: drop-shadow(0 4px 8px rgba(0,0,0,0.25));
             background: transparent;
+            border-radius: 12px;
         }
         
         .close-modal {
             position: absolute;
-            top: -40px;
-            right: -40px;
+            top: -30px;
+            right: -30px;
             color: white;
-            font-size: 30px;
+            font-size: 24px;
             cursor: pointer;
             background: none;
             border: none;
-            padding: 10px;
+            padding: 8px;
             transition: transform 0.2s;
         }
         
@@ -267,15 +371,237 @@
         }
 
         h1.main-title {
-            font-size: 2em;
+            font-size: 1.5em;
             text-align: center;
-            margin-bottom: 15px;
-            margin-top: 15px;
-            color: #2c3e50;
+            margin-bottom: 8px;
+            margin-top: 8px;
+            color: #1e293b;
+            font-weight: 700;
         }
 
         h3 {
+            color: #1e293b;
+            font-size: 1rem;
+            margin: 6px 0;
+            font-weight: 600;
+        }
+        
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0 0 6px 0;
+            color: #0f172a;
+        }
+
+        .bookmark-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 0;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #a6f7c8 0%, #b0e0f7 100%);
             color: #2c3e50;
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            font-size: 0.95rem;
+            width: 100%;
+        }
+        
+        .bookmark-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .install-badge {
+            display: block;
+            width: 150px;
+            height: auto;
+            margin: 10px 5px;
+        }
+        
+        .emoji-icon {
+            font-size: 1.2em;
+        }
+
+        .bookmark-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        .bookmark-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .bookmark-modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90%;
+            width: 400px;
+            position: relative;
+        }
+
+        .bookmark-modal h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .bookmark-instructions {
+            margin: 15px 0;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .device-instructions {
+            background: #f8f9fa;
+            border-left: 3px solid #8fd3f4;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        
+        .instruction-step {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            gap: 8px;
+        }
+        
+        .step-number {
+            background: linear-gradient(135deg, #a6f7c8 0%, #b0e0f7 100%);
+            color: #2c3e50;
+            font-weight: bold;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 12px;
+        }
+
+        .close-bookmark-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        /* Sparkle animation for journey stats */
+        @keyframes sparkle {
+            0% { transform: scale(0.9); opacity: 0.3; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(0.9); opacity: 0.3; }
+        }
+        
+        .sparkle {
+            display: inline-block;
+            animation: sparkle 2s infinite;
+            transform-origin: center;
+            color: #16a085;
+            font-size: 1.1em;
+        }
+        
+        /* Staggered animation for multiple sparkles */
+        .sparkle:nth-child(1) { animation-delay: 0s; }
+        .sparkle:nth-child(2) { animation-delay: 0.4s; }
+        .sparkle:nth-child(3) { animation-delay: 0.8s; }
+        
+        /* Responsive layout adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 8px;
+            }
+            
+            .card {
+                padding: 15px;
+                margin-bottom: 12px;
+            }
+            
+            .journey-card {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+            
+            #journey-map {
+                height: 220px;
+            }
+            
+            h1.main-title {
+                font-size: 1.5em;
+            }
+            
+            /* Optimize top section for narrow screens */
+            .top-section {
+                padding: 15px;
+                flex-direction: row;
+                align-items: center;
+            }
+            
+            .stone-photo-container {
+                width: 110px;
+                flex-shrink: 0;
+            }
+            
+            .stone-info-section {
+                flex: 1;
+                min-width: 160px;
+            }
+            
+            .counter-number {
+                font-size: 2.2rem;
+            }
+            
+            .counter-text {
+                font-size: 0.9rem;
+            }
+            
+            .journey-counter {
+                padding: 8px;
+                margin-bottom: 10px;
+            }
+            
+            .bookmark-btn {
+                padding: 10px 15px;
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Extra small screens */
+        @media (max-width: 380px) {
+            .stone-photo-container {
+                width: 90px;
+            }
+            
+            .stone-photo {
+                max-height: 100px;
+            }
+            
+            .counter-number {
+                font-size: 1.8rem;
+            }
+            
+            .counter-text {
+                font-size: 0.85rem;
+            }
         }
     </style>
 </head>
@@ -286,6 +612,54 @@
             <div class="modal-content">
                 <button class="close-modal" onclick="closePhotoModal()">×</button>
                 <img id="modalImage" src="" alt="Stone photo">
+            </div>
+        </div>
+
+        <!-- Bookmark Modal -->
+        <div id="bookmarkModal" class="bookmark-modal">
+            <div class="bookmark-modal-content">
+                <button class="close-bookmark-modal" onclick="closeBookmarkModal()">×</button>
+                <h3>Add to Home Screen</h3>
+                <div class="bookmark-instructions">
+                    <p>Add this stone's journey to your home screen for easy access:</p>
+                    
+                    <div class="device-instructions">
+                        <h4>On Android:</h4>
+                        <div class="instruction-step">
+                            <div class="step-number">1</div>
+                            <div>Tap the menu icon (⋮) in Chrome</div>
+                        </div>
+                        <div class="instruction-step">
+                            <div class="step-number">2</div>
+                            <div>Select "Add to Home screen"</div>
+                        </div>
+                        <div class="instruction-step">
+                            <div class="step-number">3</div>
+                            <div>Tap "Add" to confirm</div>
+                        </div>
+                    </div>
+                    
+                    <div class="device-instructions">
+                        <h4>On iPhone/iPad:</h4>
+                        <div class="instruction-step">
+                            <div class="step-number">1</div>
+                            <div>Tap the share icon (📤) at the bottom of Safari</div>
+                        </div>
+                        <div class="instruction-step">
+                            <div class="step-number">2</div>
+                            <div>Scroll down and tap "Add to Home Screen"</div>
+                        </div>
+                        <div class="instruction-step">
+                            <div class="step-number">3</div>
+                            <div>Tap "Add" in the top-right corner</div>
+                        </div>
+                    </div>
+                    
+                    <p>Name: <strong id="bookmarkName">Stone Journey Tracker</strong></p>
+                </div>
+                <div style="display: flex; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
+                    <button class="bookmark-btn" onclick="closeBookmarkModal()">Got it!</button>
+                </div>
             </div>
         </div>
 
@@ -311,18 +685,91 @@
         const storage = firebase.storage();
         let currentMap = null;
 
-        // Function to open photo modal
         function openPhotoModal(url) {
             const modal = document.getElementById('photoModal');
             const modalImg = document.getElementById('modalImage');
             modal.style.display = 'flex';
             modalImg.src = url;
+            
+            // Temporarily hide the map container to prevent controls showing through modal
+            if (document.getElementById('journey-map')) {
+                document.getElementById('journey-map').style.visibility = 'hidden';
+            }
         }
 
         // Function to close photo modal
         function closePhotoModal() {
             const modal = document.getElementById('photoModal');
             modal.style.display = 'none';
+            
+            // Restore map visibility
+            if (document.getElementById('journey-map')) {
+                document.getElementById('journey-map').style.visibility = 'visible';
+            }
+        }
+
+        function openBookmarkModal() {
+            document.getElementById('bookmarkName').textContent = `Stone Journey #${stoneId}`;
+            document.getElementById('bookmarkModal').style.display = 'flex';
+            
+            // Temporarily hide the map container to prevent controls showing through modal
+            if (document.getElementById('journey-map')) {
+                document.getElementById('journey-map').style.visibility = 'hidden';
+            }
+        }
+
+        // Function to close bookmark modal
+        function closeBookmarkModal() {
+            document.getElementById('bookmarkModal').style.display = 'none';
+            
+            // Restore map visibility
+            if (document.getElementById('journey-map')) {
+                document.getElementById('journey-map').style.visibility = 'visible';
+            }
+        }
+
+        // Function to try to bookmark the page
+        // Register service worker for PWA capabilities
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                // Create a simple service worker on the fly
+                const swContent = `
+                    self.addEventListener('install', (event) => {
+                        self.skipWaiting();
+                    });
+                    
+                    self.addEventListener('activate', (event) => {
+                        return self.clients.claim();
+                    });
+                    
+                    self.addEventListener('fetch', (event) => {
+                        event.respondWith(fetch(event.request));
+                    });
+                `;
+                
+                // Create a blob with the service worker content
+                const blob = new Blob([swContent], {type: 'text/javascript'});
+                const swUrl = URL.createObjectURL(blob);
+                
+                navigator.serviceWorker.register(swUrl)
+                    .then(() => console.log('Service worker registered'))
+                    .catch(err => console.error('SW registration failed:', err));
+            }
+        }
+        
+        // Generate and install web app manifest
+        function installManifest() {
+            const manifestEl = document.getElementById('manifest');
+            if (manifestEl) {
+                const manifestJSON = manifestEl.textContent;
+                const blob = new Blob([manifestJSON], {type: 'application/json'});
+                const manifestUrl = URL.createObjectURL(blob);
+                
+                const linkEl = document.querySelector('link[rel="manifest"]');
+                if (linkEl) {
+                    linkEl.href = manifestUrl;
+                }
+            }
         }
 
         async function getCoordinates(locationString) {
@@ -393,7 +840,7 @@
                     stonePhotoContainer.innerHTML = `
                         <h3>Your Stone</h3>
                         <div class="stone-placeholder">
-                            <p style="color: #666; margin: 0; font-size: 0.9em;">No photo available yet</p>
+                            <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 0.9em;">No photo yet</p>
                         </div>
                     `;
                 }
@@ -485,8 +932,8 @@
                     const markerIcon = L.divIcon({
                         html: `<div class="journey-marker${isFinalPoint ? ' journey-marker-final' : ''}">${index + 1}</div>`,
                         className: 'journey-marker-container',
-                        iconSize: [28, 28],
-                        iconAnchor: [14, 14]
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
                     });
                     
                     // Add the marker with popup
@@ -497,7 +944,7 @@
 
                 // Fit map to show all markers
                 currentMap.fitBounds(bounds, {
-                    padding: [50, 50],
+                    padding: [30, 30],
                     animate: true
                 });
             }
@@ -524,43 +971,59 @@
             const content = `
                 <div class="card">
                     <div class="card-header text-center">
-                        <h1 class="main-title">🪨 Happy Stone Journey Tracker</h1>
+                        <h1 class="main-title">🪨 Happy Stone Journey</h1>
                     </div>
                 </div>
 
-                <div id="stone-photo-container" class="stone-photo-container">
-                    <div class="loading-spinner"></div>
-                    <h3>Loading Stone Photo...</h3>
-                </div>
-
-                <div id="journey-stats">
-                    This stone has spread joy ${journeys.length} times on its journey! ✨
+                <div class="top-section">
+                    <div id="stone-photo-container" class="stone-photo-container">
+                        <div class="loading-spinner"></div>
+                        <h3>Your Stone</h3>
+                    </div>
+                    
+                    <div class="stone-info-section">
+                        <div class="journey-counter">
+                            <p class="counter-text">This stone has spread <span class="joy-word">joy</span></p>
+                            <div class="counter-number">${journeys.length}</div>
+                            <p class="counter-text">times on its <span class="journey-word">journey</span>! <span class="sparkle">✨</span></p>
+                        </div>
+                        
+                        <button class="bookmark-btn" onclick="openBookmarkModal()">
+                            <span class="emoji-icon">📱</span> Add to Home Screen
+                        </button>
+                    </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Journey Map 🗺️</h2>
+                        <h2 class="card-title">Journey Map <span class="emoji-icon">🗺️</span></h2>
                     </div>
                     <div id="journey-map"></div>
                 </div>
 
-                <div class="journeys">
-                    ${journeys.map(journey => `
-                        <div class="journey-card">
-                            <div class="location-info">
-                                <span class="emoji-icon">📍</span>
-                                <strong>Found in ${journey.location}</strong>
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Locations Found <span class="emoji-icon">📍</span></h2>
+                    </div>
+                    
+                    <div class="journeys">
+                        ${journeys.map(journey => `
+                            <div class="journey-card">
+                                <div class="location-info">
+                                    <span class="emoji-icon">📍</span>
+                                    <strong>Found in ${journey.location}</strong>
+                                </div>
+                                ${journey.photoData && journey.photoData.url 
+                                    ? `<img src="${journey.photoData.url}" alt="Stone location" class="journey-photo" onclick="openPhotoModal('${journey.photoData.url}')">` 
+                                    : ''}
+                                <p class="message-text">${journey.message}</p>
+                                <div class="date-info">
+                                    <span class="emoji-icon">📅</span>
+                                    ${journey.timestamp ? new Date(journey.timestamp.seconds * 1000).toLocaleDateString() : 'Recent'}
+                                </div>
                             </div>
-                            ${journey.photoData && journey.photoData.url 
-                                ? `<img src="${journey.photoData.url}" alt="Stone location" class="journey-photo" onclick="openPhotoModal('${journey.photoData.url}')">` 
-                                : ''}
-                            <p class="message-text">${journey.message}</p>
-                            <div class="date-info">
-                                <span class="emoji-icon">📅</span>
-                                Shared on ${journey.timestamp ? new Date(journey.timestamp.seconds * 1000).toLocaleDateString() : 'Recent'}
-                            </div>
-                        </div>
-                    `).join('')}
+                        `).join('')}
+                    </div>
                 </div>
             `;
 
@@ -640,6 +1103,10 @@
 
         // Start the application
         document.addEventListener('DOMContentLoaded', () => {
+            // Setup PWA capabilities
+            installManifest();
+            registerServiceWorker();
+            
             stoneId = getStoneIdFromUrl();
             console.log("Stone ID from URL:", stoneId);
             
@@ -652,16 +1119,31 @@
             loadStoneData(stoneId);
             
             // Handle modal events
+            // Handle photo modal clicks to close on background click
             document.getElementById('photoModal').addEventListener('click', function(e) {
                 if (e.target === this) {
                     closePhotoModal();
                 }
             });
 
-            // Handle escape key for modal
+            document.getElementById('bookmarkModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeBookmarkModal();
+                }
+            });
+
+            // Handle escape key for modals
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
                     closePhotoModal();
+                    closeBookmarkModal();
+                }
+            });
+            
+            // Add event listener for before unload to handle visibility
+            window.addEventListener('beforeunload', function() {
+                if (document.getElementById('journey-map')) {
+                    document.getElementById('journey-map').style.visibility = 'visible';
                 }
             });
         });
