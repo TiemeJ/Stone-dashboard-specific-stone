@@ -525,6 +525,45 @@
         .sparkle:nth-child(2) { animation-delay: 0.4s; }
         .sparkle:nth-child(3) { animation-delay: 0.8s; }
         
+        /* Random stone styles */
+        .random-stone-container {
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .random-stone-photo {
+            max-width: 100%;
+            max-height: 180px; 
+            margin: 10px auto;
+            display: block;
+            border-radius: 12px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+            transition: all 0.3s ease;
+        }
+        
+        .random-stone-photo:hover {
+            transform: scale(1.03);
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.2));
+        }
+        
+        .follow-journey-btn {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #74ebd5 0%, #9face6 100%);
+            border: none;
+            border-radius: 12px;
+            color: #2c3e50;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .follow-journey-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
         /* Responsive layout adjustments */
         @media (max-width: 600px) {
             .container {
@@ -1270,6 +1309,170 @@
             `;
         }
 
+        // New function to fetch and display a random stone
+        async function fetchRandomStone() {
+            try {
+                // Show loading state
+                const resultContainer = document.getElementById('random-stone-result');
+                resultContainer.innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                    </div>
+                `;
+                resultContainer.style.display = 'block';
+                
+                // For older iOS devices, use timeout protection
+                let stonesSnapshot;
+                
+                try {
+                    if (useLegacyMode) {
+                        // Set up a timeout for the stone query
+                        const stoneQueryPromise = new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                reject(new Error("Stone query timed out"));
+                            }, 15000);
+                            
+                            // Limit to fewer documents for legacy mode
+                            db.collection('stones')
+                                .limit(20)  // Limit to 20 stones for legacy mode
+                                .get()
+                                .then(snapshot => {
+                                    clearTimeout(timeout);
+                                    resolve(snapshot);
+                                })
+                                .catch(err => {
+                                    clearTimeout(timeout);
+                                    reject(err);
+                                });
+                        });
+                        
+                        stonesSnapshot = await stoneQueryPromise;
+                    } else {
+                        // Standard approach for modern browsers - get more stones
+                        stonesSnapshot = await db.collection('stones').limit(50).get();
+                    }
+                } catch (queryError) {
+                    console.error("Error querying stones:", queryError);
+                    resultContainer.innerHTML = `<p>Error loading random stone: ${queryError.message}</p>`;
+                    return;
+                }
+                
+                if (stonesSnapshot.empty) {
+                    resultContainer.innerHTML = `<p>No stones found</p>`;
+                    return;
+                }
+                
+                // Create an array of all stone documents
+                const stones = [];
+                stonesSnapshot.forEach(doc => {
+                    stones.push({
+                        id: doc.id,
+                        data: doc.data()
+                    });
+                });
+                
+                // Pick a random stone
+                const randomIndex = Math.floor(Math.random() * stones.length);
+                const randomStone = stones[randomIndex];
+                
+                // Try to get the stone's photo
+                let photoUrl = null;
+                
+                if (randomStone.data.featurePhoto && randomStone.data.featurePhoto.url) {
+                    photoUrl = randomStone.data.featurePhoto.url;
+                } else {
+                    try {
+                        // For iOS 17 and lower, use a timeout to avoid hanging
+                        if (useLegacyMode) {
+                            const storageRef = storage.ref(`stones/${randomStone.id}/${randomStone.id}`);
+                            
+                            const downloadPromise = new Promise((resolve, reject) => {
+                                storageRef.getDownloadURL().then(resolve).catch(reject);
+                            });
+                            
+                            const timeoutPromise = new Promise((_, reject) => {
+                                setTimeout(() => reject(new Error("Storage request timed out")), 10000);
+                            });
+                            
+                            try {
+                                photoUrl = await Promise.race([downloadPromise, timeoutPromise]);
+                            } catch (timeoutError) {
+                                console.error("Storage request timed out or failed:", timeoutError);
+                                throw new Error("Storage request failed or timed out");
+                            }
+                        } else {
+                            // Standard approach for modern browsers
+                            const storageRef = storage.ref(`stones/${randomStone.id}/${randomStone.id}`);
+                            photoUrl = await storageRef.getDownloadURL();
+                        }
+                    } catch (storageError) {
+                        console.log("No feature photo found for random stone:", storageError);
+                    }
+                }
+                
+                // Display the random stone with special handling for iOS
+                if (photoUrl) {
+                    if (useLegacyMode) {
+                        // For iOS 17 and lower, preload the image
+                        try {
+                            const verifiedUrl = await loadImageWithRetry(photoUrl);
+                            
+                            resultContainer.innerHTML = `
+                                <div style="text-align: center; margin: 15px 0;">
+                                    <img src="${verifiedUrl}" alt="Random stone #${randomStone.id}" class="random-stone-photo">
+                                    <p style="margin: 10px 0;">Stone #${randomStone.id}</p>
+                                    <button class="follow-journey-btn" onclick="window.location.href='?stone=${randomStone.id}'">
+                                        <span class="emoji-icon">🧭</span> Follow my journey
+                                    </button>
+                                </div>
+                            `;
+                        } catch (loadError) {
+                            console.error("Failed to preload random stone photo:", loadError);
+                            
+                            resultContainer.innerHTML = `
+                                <div style="text-align: center; margin: 15px 0;">
+                                    <div class="stone-placeholder">
+                                        <p style="color: rgba(0,0,0,0.5); margin: 0; font-size: 0.9em;">Stone #${randomStone.id}</p>
+                                    </div>
+                                    <p style="margin: 10px 0;">Stone #${randomStone.id}</p>
+                                    <button class="follow-journey-btn" onclick="window.location.href='?stone=${randomStone.id}'">
+                                        <span class="emoji-icon">🧭</span> Follow my journey
+                                    </button>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        // Standard approach for modern browsers
+                        resultContainer.innerHTML = `
+                            <div style="text-align: center; margin: 15px 0;">
+                                <img src="${photoUrl}" alt="Random stone #${randomStone.id}" class="random-stone-photo" onclick="openPhotoModal('${photoUrl}')">
+                                <p style="margin: 10px 0;">#${randomStone.id}</p>
+                                <button class="follow-journey-btn" onclick="window.open('?stone=${randomStone.id}', '_blank')">
+                                    <span class="emoji-icon">🧭</span> Follow my journey
+                                </button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultContainer.innerHTML = `
+                        <div style="text-align: center; margin: 15px 0;">
+                            <div class="stone-placeholder">
+                                <p style="color: rgba(0,0,0,0.5); margin: 0; font-size: 0.9em;">#${randomStone.id}</p>
+                            </div>
+                            <p style="margin: 10px 0;">#${randomStone.id}</p>
+                            <button class="follow-journey-btn" onclick="window.open('?stone=${randomStone.id}', '_blank')">
+                                <span class="emoji-icon">🧭</span> Follow my journey
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("Error fetching random stone:", error);
+                const resultContainer = document.getElementById('random-stone-result');
+                resultContainer.innerHTML = `<p>Error loading random stone: ${error.message}</p>`;
+            }
+        }
+
         // Enhanced function to render journey cards with direct image display for legacy mode
         async function renderJourneys(stoneData, journeys) {
             // Limit the number of journey cards for older iOS devices
@@ -1323,6 +1526,22 @@
                     
                     <div class="journeys" id="journey-cards">
                         <!-- Journey cards will be added here -->
+                    </div>
+                </div>
+                
+                <!-- New Random Stone Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Curious about other stones? <span class="emoji-icon">🔍</span></h2>
+                    </div>
+                    <p style="margin: 0 0 15px 0;">Each time you click this button, you get to see another happy adventurous stone</p>
+                    <div class="random-stone-container">
+                        <button id="random-stone-btn" class="bookmark-btn">
+                            <span class="emoji-icon">🪨</span> Click me!
+                        </button>
+                        <div id="random-stone-result" style="display: none; margin-top: 15px;">
+                            <!-- Random stone content will be loaded here -->
+                        </div>
                     </div>
                 </div>
             `;
@@ -1416,6 +1635,9 @@
             
             // Update the map
             updateMap(journeys);
+            
+            // Add event listener for the random stone button
+            document.getElementById('random-stone-btn').addEventListener('click', fetchRandomStone);
         }
 
         async function loadStoneData(stoneId) {
