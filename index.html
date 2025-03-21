@@ -27,10 +27,10 @@
           "theme_color": "#a6f7c8"
         }
     </script>
-    <!-- Firebase -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-storage-compat.min.js"></script>
+    <!-- Firebase v8.10.1 for iOS compatibility -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-app.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-firestore.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-storage.min.js"></script>
     <!-- Leaflet for maps -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -603,6 +603,25 @@
                 font-size: 0.85rem;
             }
         }
+        
+        /* iOS compatibility specific styles */
+        .modal-open {
+            position: fixed;
+            overflow: hidden;
+            width: 100%;
+        }
+        
+        /* iOS version notice */
+        .version-notice {
+            display: none;
+            background-color: #f0f9ff;
+            border-left: 3px solid #1e293b;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            color: #475569;
+        }
     </style>
 </head>
 <body>
@@ -666,6 +685,8 @@
         <div id="app">
             <!-- Content will be loaded here -->
         </div>
+        
+        <div id="versionInfo" class="version-notice"></div>
     </div>
 
     <script>
@@ -679,17 +700,110 @@
             appId: "1:454968587977:web:cce4e67177cdf8029ebf18"
         };
 
-        // Initialize Firebase
+        // Initialize Firebase (v8 syntax)
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const storage = firebase.storage();
         let currentMap = null;
+        
+        // Detect iOS versions for special handling
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        let iOSVersion = 0;
+        
+        function getiOSVersion() {
+            if (!isIOS) return 0;
+            
+            const match = navigator.userAgent.match(/OS (\d+)_(\d+)_?(\d+)?/);
+            return match ? parseInt(match[1], 10) : 0;
+        }
+        
+        // Check iOS version
+        iOSVersion = getiOSVersion();
+        const useLegacyMode = isIOS && iOSVersion < 18;
+        
+        console.log("Device info - iOS:", isIOS, "Version:", iOSVersion, "Legacy Mode:", useLegacyMode);
+        
+        // Show iOS version info if relevant
+        function showVersionInfo() {
+            const versionInfo = document.getElementById('versionInfo');
+            if (isIOS && versionInfo) {
+                versionInfo.style.display = 'block';
+                versionInfo.textContent = `iOS ${iOSVersion} detected. ${useLegacyMode ? 
+                    'Using compatibility mode for better performance.' : 
+                    'Using standard mode.'}`;
+            }
+        }
+
+        // Helper function to load image with retries - for improved reliability on iOS
+        async function loadImageWithRetry(url, retries = 3, delay = 1000) {
+            let lastError = null;
+            
+            for (let i = 0; i < retries; i++) {
+                try {
+                    console.log(`Attempt ${i+1} to load image: ${url}`);
+                    
+                    // For legacy mode, use a simpler approach
+                    if (useLegacyMode) {
+                        return new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.onload = () => resolve(url);
+                            img.onerror = (e) => reject(new Error(`Failed to load image: ${e.message}`));
+                            img.src = url;
+                        });
+                    }
+                    
+                    // Standard approach for modern browsers
+                    const response = await fetch(url, { 
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'image/*' }
+                    });
+                    
+                    if (response.ok) {
+                        console.log("Image fetch succeeded");
+                        return url;
+                    }
+                    
+                    lastError = new Error(`HTTP error: ${response.status}`);
+                    console.log(`Attempt ${i+1} failed: ${response.status}`);
+                } catch (error) {
+                    lastError = error;
+                    console.error(`Load attempt ${i+1} error:`, error);
+                }
+                
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            
+            throw lastError || new Error(`Failed to load image after ${retries} attempts`);
+        }
 
         function openPhotoModal(url) {
             const modal = document.getElementById('photoModal');
             const modalImg = document.getElementById('modalImage');
-            modal.style.display = 'flex';
-            modalImg.src = url;
+            
+            // For iOS versions, we need to explicitly preload the image
+            if (useLegacyMode) {
+                // Show loading state
+                modal.style.display = 'flex';
+                modalImg.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20200%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3Cstyle%20type%3D%22text%2Fcss%22%3E%23holder_17e45eb143a%20text%20%7B%20fill%3A%23AAAAAA%3Bfont-weight%3Abold%3Bfont-family%3AArial%2C%20Helvetica%2C%20Open%20Sans%2C%20sans-serif%2C%20monospace%3Bfont-size%3A15pt%20%7D%20%3C%2Fstyle%3E%3C%2Fdefs%3E%3Cg%20id%3D%22holder_17e45eb143a%22%3E%3Crect%20width%3D%22300%22%20height%3D%22200%22%20fill%3D%22%23EEEEEE%22%3E%3C%2Frect%3E%3Cg%3E%3Ctext%20x%3D%22110.5%22%20y%3D%22107.1%22%3ELoading...%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E';
+                
+                const tempImg = new Image();
+                tempImg.onload = function() {
+                    modalImg.src = url;
+                    document.body.classList.add('modal-open');
+                };
+                tempImg.onerror = function() {
+                    modalImg.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20200%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3Cstyle%20type%3D%22text%2Fcss%22%3E%23holder_17e45eb143a%20text%20%7B%20fill%3A%23AAAAAA%3Bfont-weight%3Abold%3Bfont-family%3AArial%2C%20Helvetica%2C%20Open%20Sans%2C%20sans-serif%2C%20monospace%3Bfont-size%3A15pt%20%7D%20%3C%2Fstyle%3E%3C%2Fdefs%3E%3Cg%20id%3D%22holder_17e45eb143a%22%3E%3Crect%20width%3D%22300%22%20height%3D%22200%22%20fill%3D%22%23EEEEEE%22%3E%3C%2Frect%3E%3Cg%3E%3Ctext%20x%3D%2285%22%20y%3D%22107.1%22%3EFailed to load%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E';
+                };
+                tempImg.src = url;
+            } else {
+                modal.style.display = 'flex';
+                modalImg.src = url;
+                document.body.classList.add('modal-open');
+            }
             
             // Temporarily hide the map container to prevent controls showing through modal
             if (document.getElementById('journey-map')) {
@@ -701,6 +815,7 @@
         function closePhotoModal() {
             const modal = document.getElementById('photoModal');
             modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
             
             // Restore map visibility
             if (document.getElementById('journey-map')) {
@@ -801,52 +916,131 @@
 
         async function loadStonePhoto(stoneId) {
             try {
-                // First check if the stone has a feature photo in Firestore
-                const stoneDoc = await db.collection('stones').doc(stoneId).get();
-                const stoneData = stoneDoc.data() || {};
+                console.log("Loading stone photo for:", stoneId);
                 
+                // First check if the stone has a feature photo in Firestore
+                let stoneDoc;
                 let photoUrl = null;
                 
-                // Check if there's a feature photo URL in Firestore
-                if (stoneData.featurePhoto && stoneData.featurePhoto.url) {
-                    photoUrl = stoneData.featurePhoto.url;
-                    console.log("Found photo in Firestore:", photoUrl);
-                } else {
-                    // If not in Firestore, try to get it directly from Storage
-                    try {
-                        console.log("Checking Storage for photo: ", `stones/${stoneId}/${stoneId}`);
-                        const storageRef = storage.ref(`stones/${stoneId}/${stoneId}`);
-                        photoUrl = await storageRef.getDownloadURL();
-                        console.log("Found photo in Storage:", photoUrl);
-                        
-                        // Update Firestore with the photo URL for future reference
-                        try {
-                            await db.collection('stones').doc(stoneId).update({
-                                featurePhoto: {
-                                    url: photoUrl,
-                                    uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
-                                }
+                try {
+                    // For iOS 17 and below, use timeout protection
+                    if (useLegacyMode) {
+                        const stoneDocRef = db.collection('stones').doc(stoneId);
+                        const docPromise = new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                reject(new Error("Firestore query timed out"));
+                            }, 15000);
+                            
+                            stoneDocRef.get().then(doc => {
+                                clearTimeout(timeout);
+                                resolve(doc);
+                            }).catch(err => {
+                                clearTimeout(timeout);
+                                reject(err);
                             });
-                            console.log("Updated Firestore with Storage photo URL");
-                        } catch (updateError) {
-                            console.error("Error updating Firestore with photo URL:", updateError);
-                        }
-                    } catch (storageError) {
-                        console.log("No feature photo found in Storage:", storageError);
+                        });
+                        
+                        stoneDoc = await docPromise;
+                    } else {
+                        // Standard approach for modern browsers
+                        stoneDoc = await db.collection('stones').doc(stoneId).get();
                     }
+                    
+                    const stoneData = stoneDoc.exists ? stoneDoc.data() : {};
+                    
+                    // Check if there's a feature photo URL in Firestore
+                    if (stoneData.featurePhoto && stoneData.featurePhoto.url) {
+                        photoUrl = stoneData.featurePhoto.url;
+                        console.log("Found photo in Firestore:", photoUrl);
+                    } else {
+                        // If not in Firestore, try to get it directly from Storage
+                        try {
+                            console.log("Checking Storage for photo: ", `stones/${stoneId}/${stoneId}`);
+                            
+                            // For iOS 17 and lower, use a timeout to avoid hanging
+                            if (useLegacyMode) {
+                                const storageRef = storage.ref(`stones/${stoneId}/${stoneId}`);
+                                
+                                const downloadPromise = new Promise((resolve, reject) => {
+                                    storageRef.getDownloadURL().then(resolve).catch(reject);
+                                });
+                                
+                                const timeoutPromise = new Promise((_, reject) => {
+                                    setTimeout(() => reject(new Error("Storage request timed out")), 10000);
+                                });
+                                
+                                try {
+                                    photoUrl = await Promise.race([downloadPromise, timeoutPromise]);
+                                    console.log("Found photo in Storage (with timeout):", photoUrl);
+                                } catch (timeoutError) {
+                                    console.error("Storage request timed out or failed:", timeoutError);
+                                    throw new Error("Storage request failed or timed out");
+                                }
+                            } else {
+                                // Standard approach for modern browsers
+                                const storageRef = storage.ref(`stones/${stoneId}/${stoneId}`);
+                                photoUrl = await storageRef.getDownloadURL();
+                                console.log("Found photo in Storage:", photoUrl);
+                            }
+                            
+                            // Try to update Firestore with the photo URL for future reference
+                            if (photoUrl && stoneDoc.exists) {
+                                try {
+                                    await db.collection('stones').doc(stoneId).update({
+                                        featurePhoto: {
+                                            url: photoUrl,
+                                            uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                        }
+                                    });
+                                    console.log("Updated Firestore with Storage photo URL");
+                                } catch (updateError) {
+                                    console.error("Error updating Firestore with photo URL:", updateError);
+                                }
+                            }
+                        } catch (storageError) {
+                            console.log("No feature photo found in Storage:", storageError);
+                        }
+                    }
+                } catch (firestoreError) {
+                    console.error("Error accessing stone document in Firestore:", firestoreError);
                 }
                 
                 const stonePhotoContainer = document.getElementById('stone-photo-container');
                 
                 if (photoUrl) {
-                    stonePhotoContainer.innerHTML = `
-                        <h3>Your Stone</h3>
-                        <img src="${photoUrl}" alt="Stone #${stoneId}" class="stone-photo" 
-                             onclick="openPhotoModal('${photoUrl}')">
-                    `;
-                    
-                    // Update the app icon to use the stone photo
-                    updateAppIcon(photoUrl);
+                    if (useLegacyMode) {
+                        // For iOS 17 and lower, preload the image to ensure it loads properly
+                        try {
+                            const verifiedUrl = await loadImageWithRetry(photoUrl);
+                            
+                            stonePhotoContainer.innerHTML = `
+                                <h3>Your Stone</h3>
+                                <img src="${verifiedUrl}" alt="Stone #${stoneId}" class="stone-photo" 
+                                    onclick="openPhotoModal('${verifiedUrl}')">
+                            `;
+                            
+                            // Update the app icon to use the stone photo
+                            updateAppIcon(verifiedUrl);
+                        } catch (loadError) {
+                            console.error("Failed to preload stone photo:", loadError);
+                            stonePhotoContainer.innerHTML = `
+                                <h3>Your Stone</h3>
+                                <div class="stone-placeholder">
+                                    <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 0.9em;">No photo yet</p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        // Standard approach
+                        stonePhotoContainer.innerHTML = `
+                            <h3>Your Stone</h3>
+                            <img src="${photoUrl}" alt="Stone #${stoneId}" class="stone-photo" 
+                                onclick="openPhotoModal('${photoUrl}')">
+                        `;
+                        
+                        // Update the app icon to use the stone photo
+                        updateAppIcon(photoUrl);
+                    }
                 } else {
                     stonePhotoContainer.innerHTML = `
                         <h3>Your Stone</h3>
@@ -859,6 +1053,17 @@
                 return true;
             } catch (error) {
                 console.error("Error loading stone photo:", error);
+                
+                const stonePhotoContainer = document.getElementById('stone-photo-container');
+                if (stonePhotoContainer) {
+                    stonePhotoContainer.innerHTML = `
+                        <h3>Your Stone</h3>
+                        <div class="stone-placeholder">
+                            <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 0.9em;">No photo yet</p>
+                        </div>
+                    `;
+                }
+                
                 return false;
             }
         }
@@ -925,8 +1130,11 @@
                 return dateA - dateB;
             });
 
-            // Process journeys for coordinates
-            sortedJourneys.forEach(journey => {
+            // Process journeys for coordinates - with optimizations for older iOS
+            const maxPoints = useLegacyMode ? 15 : sortedJourneys.length; // Limit points for older iOS
+            const journeysToProcess = sortedJourneys.slice(0, maxPoints);
+            
+            journeysToProcess.forEach(journey => {
                 if (journey.coordinates) {
                     coordinates.push([journey.coordinates.lat, journey.coordinates.lon]);
                     bounds.extend([journey.coordinates.lat, journey.coordinates.lon]);
@@ -955,23 +1163,37 @@
                     const isFinalPoint = index === journeyPoints.length - 1;
                     const data = point.data;
                     
-                    // Create popup content
-                    let popupContent = `
-                        <div style="max-width: 200px;">
-                            <b>Found in ${data.location}</b>
-                            <p style="margin: 5px 0;">${data.message}</p>
-                    `;
+                    // Create popup content - with special handling for older iOS
+                    let popupContent;
                     
-                    if (data.photoData && data.photoData.url) {
-                        popupContent += `
-                            <img src="${data.photoData.url}" 
-                                style="width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer;"
-                                onclick="openPhotoModal('${data.photoData.url}')"
-                            >
+                    if (useLegacyMode && data.photoData && data.photoData.url) {
+                        // For iOS 17 and lower, use a link instead of embedding image to avoid memory issues
+                        popupContent = `
+                            <div style="max-width: 200px;">
+                                <b>Found in ${data.location}</b>
+                                <p style="margin: 5px 0;">${data.message}</p>
+                                <p style="margin: 5px 0;"><a href="#" onclick="openPhotoModal('${data.photoData.url}'); return false;">View Photo</a></p>
+                            </div>
                         `;
+                    } else {
+                        // Standard popup with embedded image for modern browsers
+                        popupContent = `
+                            <div style="max-width: 200px;">
+                                <b>Found in ${data.location}</b>
+                                <p style="margin: 5px 0;">${data.message}</p>
+                        `;
+                        
+                        if (data.photoData && data.photoData.url) {
+                            popupContent += `
+                                <img src="${data.photoData.url}" 
+                                    style="width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer;"
+                                    onclick="openPhotoModal('${data.photoData.url}')"
+                                >
+                            `;
+                        }
+                        
+                        popupContent += '</div>';
                     }
-                    
-                    popupContent += '</div>';
                     
                     // Create a numbered marker
                     const markerIcon = L.divIcon({
@@ -1013,6 +1235,16 @@
         }
 
         function renderJourneys(stoneData, journeys) {
+            // Limit the number of journey cards for older iOS devices
+            const maxJourneyCards = useLegacyMode ? 10 : journeys.length;
+            const journeysToRender = journeys.slice(0, maxJourneyCards);
+            
+            // Add a message if we limited the number of journeys
+            let limitMessage = '';
+            if (maxJourneyCards < journeys.length) {
+                limitMessage = `<p style="text-align: center; font-style: italic; color: #666; margin-top: 15px;">Showing ${maxJourneyCards} of ${journeys.length} entries for better performance.</p>`;
+            }
+            
             const content = `
                 <div class="card">
                     <div class="card-header text-center">
@@ -1052,22 +1284,52 @@
                     </div>
                     
                     <div class="journeys">
-                        ${journeys.map(journey => `
-                            <div class="journey-card">
-                                <div class="location-info">
-                                    <span class="emoji-icon">📍</span>
-                                    <strong>Found in ${journey.location}</strong>
+                        ${journeysToRender.map(journey => {
+                            // Format date with fallback for different timestamp formats
+                            let dateStr = 'Recent';
+                            if (journey.timestamp) {
+                                if (journey.timestamp.toDate) {
+                                    // Firebase Timestamp object
+                                    dateStr = journey.timestamp.toDate().toLocaleDateString();
+                                } else if (journey.timestamp.seconds) {
+                                    // Raw timestamp object
+                                    dateStr = new Date(journey.timestamp.seconds * 1000).toLocaleDateString();
+                                }
+                            }
+                            
+                            // For older iOS, use a link instead of embedding large images
+                            let photoHtml = '';
+                            if (journey.photoData && journey.photoData.url) {
+                                if (useLegacyMode) {
+                                    photoHtml = `
+                                        <div style="text-align: center; margin: 10px 0;">
+                                            <button onclick="openPhotoModal('${journey.photoData.url}')" 
+                                                style="padding: 8px 15px; border-radius: 8px; background: #f0f9ff; color: #3498db; border: 1px solid #e0f2fe; font-weight: 500;">
+                                                View Photo 📸
+                                            </button>
+                                        </div>
+                                    `;
+                                } else {
+                                    photoHtml = `<img src="${journey.photoData.url}" alt="Stone location" class="journey-photo" onclick="openPhotoModal('${journey.photoData.url}')">`;
+                                }
+                            }
+                            
+                            return `
+                                <div class="journey-card">
+                                    <div class="location-info">
+                                        <span class="emoji-icon">📍</span>
+                                        <strong>Found in ${journey.location}</strong>
+                                    </div>
+                                    ${photoHtml}
+                                    <p class="message-text">${journey.message}</p>
+                                    <div class="date-info">
+                                        <span class="emoji-icon">📅</span>
+                                        ${dateStr}
+                                    </div>
                                 </div>
-                                ${journey.photoData && journey.photoData.url 
-                                    ? `<img src="${journey.photoData.url}" alt="Stone location" class="journey-photo" onclick="openPhotoModal('${journey.photoData.url}')">` 
-                                    : ''}
-                                <p class="message-text">${journey.message}</p>
-                                <div class="date-info">
-                                    <span class="emoji-icon">📅</span>
-                                    ${journey.timestamp ? new Date(journey.timestamp.seconds * 1000).toLocaleDateString() : 'Recent'}
-                                </div>
-                            </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
+                        ${limitMessage}
                     </div>
                 </div>
             `;
@@ -1085,37 +1347,118 @@
             try {
                 console.log("Loading stone data for ID:", stoneId);
                 
-                // Get stone data
-                const stoneDoc = await db.collection('stones').doc(stoneId).get();
-                console.log("Stone document exists:", stoneDoc.exists);
+                // Get stone data with timeout protection for older iOS
+                let stoneDoc;
                 
-                if (!stoneDoc.exists) {
-                    showError('Stone not found. Please check the ID and try again.');
+                try {
+                    if (useLegacyMode) {
+                        // For iOS 17 and below, use a timeout-protected promise
+                        const stoneDocRef = db.collection('stones').doc(stoneId);
+                        const docPromise = new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                reject(new Error("Firestore query timed out"));
+                            }, 15000);
+                            
+                            stoneDocRef.get().then(doc => {
+                                clearTimeout(timeout);
+                                resolve(doc);
+                            }).catch(err => {
+                                clearTimeout(timeout);
+                                reject(err);
+                            });
+                        });
+                        
+                        stoneDoc = await docPromise;
+                    } else {
+                        // Standard approach for modern browsers
+                        stoneDoc = await db.collection('stones').doc(stoneId).get();
+                    }
+                    
+                    console.log("Stone document exists:", stoneDoc.exists);
+                    
+                    if (!stoneDoc.exists) {
+                        showError('Stone not found. Please check the ID and try again.');
+                        return;
+                    }
+                } catch (docError) {
+                    console.error("Error fetching stone document:", docError);
+                    showError(`Error loading stone: ${docError.message}`);
                     return;
                 }
                 
                 const stoneData = stoneDoc.data();
 
-                // Get journey data
-                const journeySnapshot = await db.collection('stones')
-                    .doc(stoneId)
-                    .collection('journeys')
-                    .orderBy('timestamp', 'desc')
-                    .get();
+                // Get journey data with timeout protection for older iOS
+                let journeySnapshot;
+                
+                try {
+                    if (useLegacyMode) {
+                        // Set up a timeout for the journey query
+                        const journeyPromise = new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                reject(new Error("Journey loading timed out"));
+                            }, 15000);
+                            
+                            // Firebase v8 syntax for collection query
+                            db.collection('stones')
+                                .doc(stoneId)
+                                .collection('journeys')
+                                .orderBy('timestamp', 'desc')
+                                .get()
+                                .then(snapshot => {
+                                    clearTimeout(timeout);
+                                    resolve(snapshot);
+                                })
+                                .catch(err => {
+                                    clearTimeout(timeout);
+                                    reject(err);
+                                });
+                        });
+                        
+                        journeySnapshot = await journeyPromise;
+                    } else {
+                        // Standard approach for modern browsers
+                        journeySnapshot = await db.collection('stones')
+                            .doc(stoneId)
+                            .collection('journeys')
+                            .orderBy('timestamp', 'desc')
+                            .get();
+                    }
+                } catch (journeyError) {
+                    console.error("Error fetching journeys:", journeyError);
+                    // Still render with empty journey array
+                    renderJourneys(stoneData, []);
+                    return;
+                }
 
                 const journeyData = [];
-                for (const doc of journeySnapshot.docs) {
-                    const data = doc.data();
-                    
-                    // Get coordinates if not already present
-                    if (!data.coordinates && data.location) {
-                        const coords = await getCoordinates(data.location);
-                        if (coords) {
-                            data.coordinates = coords;
+                
+                // Process journey documents
+                journeySnapshot.forEach(doc => {
+                    journeyData.push(doc.data());
+                });
+                
+                // For iOS 17 and lower, limit the number of coordinates to fetch
+                let coordsToFetch = journeyData.length;
+                if (useLegacyMode) {
+                    coordsToFetch = Math.min(10, journeyData.length);
+                }
+                
+                // Add coordinates for journeys that need them (with limit for iOS)
+                let coordsFetched = 0;
+                for (const journey of journeyData) {
+                    if (!journey.coordinates && journey.location && coordsFetched < coordsToFetch) {
+                        try {
+                            const coords = await getCoordinates(journey.location);
+                            if (coords) {
+                                journey.coordinates = coords;
+                                coordsFetched++;
+                            }
+                        } catch (error) {
+                            console.warn("Could not get coordinates for:", journey.location);
+                            // Continue without coordinates
                         }
                     }
-                    
-                    journeyData.push(data);
                 }
 
                 renderJourneys(stoneData, journeyData);
@@ -1148,6 +1491,12 @@
 
         // Start the application
         document.addEventListener('DOMContentLoaded', () => {
+            console.log("Document loaded, initializing app");
+            console.log("Device info - iOS:", isIOS, "Version:", iOSVersion, "Legacy Mode:", useLegacyMode);
+            
+            // Show version info if relevant
+            showVersionInfo();
+            
             // Setup PWA capabilities
             installManifest();
             registerServiceWorker();
